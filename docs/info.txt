@@ -1,0 +1,6 @@
+Ollama runs large language models locally on Windows.
+RAG combines retrieval and generation.
+LLaMA models can be used without internet.
+my name is tala .
+dad nasser.
+i love you :me tooo <3 :) .

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+qdrant-client
+sentence-transformers
+python-dotenv
+requests
+pandas
+langchain
+langchain-text-splitters
