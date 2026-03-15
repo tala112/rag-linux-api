@@ -30,19 +30,6 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO)
 
-COMMAND_MAP = {
-    "find all files modified in the last 7 days": "find . -type f -mtime -7",
-    "recursively change ownership of a directory": "chown -R john:john /path/to/directory",
-    "list open files by a process": "lsof -p 1234",
-    "monitor system resource usage dynamically": "dstat -cdngy",
-    "copy all .log files to a backup directory": "cp *.log /path/to/backup/",
-    "list all running services": "systemctl list-units --type=service",
-    "find and replace": "sed -i 's/foo/bar/g' *.txt",
-    "check if port 8080 is in use": "netstat -tulnp | grep 8080",
-    "display real-time disk i/o stats": "iostat -dx 1",
-    "create a compressed archive": "tar -czvf backup.tar.gz /path/to/directory",
-}
-
 
 @app.get("/")
 def home():
@@ -54,18 +41,8 @@ def ask(q: str = Query(..., description="Your question in natural language")):
     logging.info(f"Question: {q}")
 
     try:
-        q_lower = q.lower()
-        
-        for key, cmd in COMMAND_MAP.items():
-            if key in q_lower or any(word in q_lower for word in key.split()[:2]):
-                return {
-                    "question": q,
-                    "answer": cmd,
-                    "command": cmd,
-                    "similar_commands": [cmd]
-                }
-        
         q_emb = embedder.encode(q).tolist()
+        
         response = qdrant.query_points(
             collection_name=COLLECTION_NAME,
             query=q_emb,
@@ -74,11 +51,12 @@ def ask(q: str = Query(..., description="Your question in natural language")):
 
         if response and response.points and response.points[0].payload:
             cmd = response.points[0].payload.get("output", "")
+            similar = [p.payload.get("output", "") for p in response.points[1:4] if p.payload]
             return {
                 "question": q,
                 "answer": cmd,
                 "command": cmd,
-                "similar_commands": [cmd]
+                "similar_commands": similar
             }
 
         return {
