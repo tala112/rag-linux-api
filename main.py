@@ -11,7 +11,7 @@ load_dotenv()
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 COLLECTION_NAME = "linux_commands"
-EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL = "BAAI/bge-base-en-v1.5"
 
 if not QDRANT_URL or not QDRANT_API_KEY:
     raise ValueError("Missing QDRANT_URL or QDRANT_API_KEY in .env")
@@ -36,28 +36,51 @@ def home():
     return {"message": "Linux Command RAG API. Use /ask?q=your question"}
 
 
+def pick_best_command(results):
+    if not results:
+        return None
+
+    candidates = []
+    for p in results:
+        if p.payload:
+            cmd = p.payload.get("output", "")
+            score = p.score
+            candidates.append({"cmd": cmd, "score": score})
+
+    if not candidates:
+        return None
+
+    best = min(candidates, key=lambda x: len(x["cmd"]))
+    return best
+
+
 @app.get("/ask")
 def ask(q: str = Query(..., description="Your question in natural language")):
     logging.info(f"Question: {q}")
 
     try:
         q_emb = embedder.encode(q).tolist()
-        
+
         response = qdrant.query_points(
             collection_name=COLLECTION_NAME,
             query=q_emb,
-            limit=1
+            limit=5
         )
 
-        if response and response.points and response.points[0].payload:
-            cmd = response.points[0].payload.get("output", "")
-            similar = [p.payload.get("output", "") for p in response.points[1:4] if p.payload]
-            return {
-                "question": q,
-                "answer": cmd,
-                "command": cmd,
-                "similar_commands": similar
-            }
+        if response and response.points:
+            best = pick_best_command(response.points)
+
+            if best:
+                cmd = best["cmd"]
+                similar = [p.payload.get("output", "") for p in response.points if p.payload and p.payload.get("output", "") != cmd][:4]
+
+                return {
+                    "question": q,
+                    "answer": cmd,
+                    "command": cmd,
+                    "similar_commands": similar,
+                    "match_score": best["score"]
+                }
 
         return {
             "question": q,
